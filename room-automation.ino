@@ -37,14 +37,14 @@ int motion;
 // preferences
 int minTemp;
 int maxTemp;
-char curtainOPEN[5];
-char curtainCLOSE[5];
-char L_Main_OFF[5];
-char L_Main_ON[5];
-char L_Bed_OFF[5];
-char L_Bed_ON[5];
-char L_Balcony_OFF[5];
-char L_Balcony_ON[5];
+String curtainOPEN;
+String curtainCLOSE;
+String L_Main_OFF;
+String L_Main_ON;
+String L_Bed_OFF;
+String L_Bed_ON;
+String L_Balcony_OFF;
+String L_Balcony_ON;
 
 
 // Firebase Data object
@@ -95,89 +95,102 @@ void loop() {
     sendDataPrevMillis = millis();
 
     /* ------------------------------------ TEMPERATURE PREFERENCES ------------------------------------ */
-    if (Firebase.RTDB.getInt(&fbdo, "/preferences/temp/min")) {
-      if (fbdo.dataType() == "int") {
-        minTemp = fbdo.intData();
-      }
-    } else {
-      Serial.println(fbdo.errorReason());
-    }
+    fetchIntPreferences(&fbdo,"/preferences/temp/min",minTemp);
+    fetchIntPreferences(&fbdo,"/preferences/temp/max",maxTemp);
+    // if (Firebase.RTDB.getInt(&fbdo, "/preferences/temp/min")) {
+    //   if (fbdo.dataType() == "int") {
+    //     minTemp = fbdo.intData();
+    //   }
+    // } else {
+    //   Serial.println(fbdo.errorReason());
+    // }
 
-    if (Firebase.RTDB.getInt(&fbdo, "/preferences/temp/max")) {
-      if (fbdo.dataType() == "int") {
-        maxTemp = fbdo.intData();
-      }
-    } else {
-      Serial.println(fbdo.errorReason());
-    }
+    // if (Firebase.RTDB.getInt(&fbdo, "/preferences/temp/max")) {
+    //   if (fbdo.dataType() == "int") {
+    //     maxTemp = fbdo.intData();
+    //   }
+    // } else {
+    //   Serial.println(fbdo.errorReason());
+    // }
 
     /* ------------------------------------ CURTAIN PREFERENCES ------------------------------------ */
-    if (Firebase.RTDB.getString(&fbdo, "/preferences/curtain/open")) {
-      if (fbdo.dataType() == "string") {
-        curtainOPEN = fbdo.stringData();
-      }
-    } else {
-      Serial.println(fbdo.errorReason());
-    }
+    fetchStringPreferences(&fbdo, "/preferences/curtain/open", curtainOPEN);
+    fetchStringPreferences(&fbdo, "/preferences/curtain/close", curtainCLOSE);
 
-    if (Firebase.RTDB.getString(&fbdo, "/preferences/curtain/close")) {
-      if (fbdo.dataType() == "string") {
-        curtainCLOSE = fbdo.stringData();
-      }
-    } else {
-      Serial.println(fbdo.errorReason());
-    }
+    // if (Firebase.RTDB.getString(&fbdo, "/preferences/curtain/open")) {
+    //   if (fbdo.dataType() == "string") {
+    //     curtainOPEN = fbdo.stringData();
+    //   }
+    // } else {
+    //   Serial.println(fbdo.errorReason());
+    // }
+    // if (Firebase.RTDB.getString(&fbdo, "/preferences/curtain/close")) {
+    //   if (fbdo.dataType() == "string") {
+    //     curtainCLOSE = fbdo.stringData();
+    //   }
+    // } else {
+    //   Serial.println(fbdo.errorReason());
+    // }
 
     /* ------------------------------------ MAIN LIGHT PREFERENCES ------------------------------------ */
-    if (Firebase.RTDB.getString(&fbdo, "/preferences/light/main/on")) {
-      if (fbdo.dataType() == "string") {
-        L_Main_ON = fbdo.stringData();
-      }
-    } else {
-      Serial.println(fbdo.errorReason());
-    }
+    fetchStringPreferences(&fbdo, "/preferences/light/main/on", L_Main_ON);
+    fetchStringPreferences(&fbdo, "/preferences/light/main/off", L_Main_OFF);
 
-    if (Firebase.RTDB.getString(&fbdo, "/preferences/light/main/off")) {
-      if (fbdo.dataType() == "string") {
-        L_Main_OFF = fbdo.stringData();
-      }
-    } else {
-      Serial.println(fbdo.errorReason());
-    }
+    // if (Firebase.RTDB.getString(&fbdo, "/preferences/light/main/on")) {
+    //   if (fbdo.dataType() == "string") {
+    //     L_Main_ON = fbdo.stringData();
+    //   }
+    // } else {
+    //   Serial.println(fbdo.errorReason());
+    // }
+
+    // if (Firebase.RTDB.getString(&fbdo, "/preferences/light/main/off")) {
+    //   if (fbdo.dataType() == "string") {
+    //     L_Main_OFF = fbdo.stringData();
+    //   }
+    // } else {
+    //   Serial.println(fbdo.errorReason());
+    // }
 
     /* ------------------------------------ BED LIGHT PREFERENCES ------------------------------------ */
-    if (Firebase.RTDB.getString(&fbdo, "/preferences/light/bed/on")) {
-      if (fbdo.dataType() == "string") {
-        L_Bed_ON = fbdo.stringData();
-      }
-    } else {
-      Serial.println(fbdo.errorReason());
-    }
+    fetchStringPreferences(&fbdo, "/preferences/light/bed/on", L_Bed_ON);
+    fetchStringPreferences(&fbdo, "/preferences/light/bed/off", L_Bed_OFF);
 
-    if (Firebase.RTDB.getString(&fbdo, "/preferences/light/bed/off")) {
-      if (fbdo.dataType() == "string") {
-        L_Bed_OFF = fbdo.stringData();
-      }
-    } else {
-      Serial.println(fbdo.errorReason());
-    }
+    // if (Firebase.RTDB.getString(&fbdo, "/preferences/light/bed/on")) {
+    //   if (fbdo.dataType() == "string") {
+    //     L_Bed_ON = fbdo.stringData();
+    //   }
+    // } else {
+    //   Serial.println(fbdo.errorReason());
+    // }
+
+    // if (Firebase.RTDB.getString(&fbdo, "/preferences/light/bed/off")) {
+    //   if (fbdo.dataType() == "string") {
+    //     L_Bed_OFF = fbdo.stringData();
+    //   }
+    // } else {
+    //   Serial.println(fbdo.errorReason());
+    // }
 
     /* ------------------------------------ BALCONY LIGHT PREFERENCES ------------------------------------ */
-    if (Firebase.RTDB.getString(&fbdo, "/preferences/light/balcony/on")) {
-      if (fbdo.dataType() == "string") {
-        L_Balcony_ON = fbdo.stringData();
-      }
-    } else {
-      Serial.println(fbdo.errorReason());
-    }
+    fetchStringPreferences(&fbdo, "/preferences/light/balcony/on", L_Balcony_ON);
+    fetchStringPreferences(&fbdo, "/preferences/light/balcony/off", L_Balcony_OFF);
 
-    if (Firebase.RTDB.getString(&fbdo, "/preferences/light/balcony/off")) {
-      if (fbdo.dataType() == "string") {
-        L_Balcony_OFF = fbdo.stringData();
-      }
-    } else {
-      Serial.println(fbdo.errorReason());
-    }
+    // if (Firebase.RTDB.getString(&fbdo, "/preferences/light/balcony/on")) {
+    //   if (fbdo.dataType() == "string") {
+    //     L_Balcony_ON = fbdo.stringData();
+    //   }
+    // } else {
+    //   Serial.println(fbdo.errorReason());
+    // }
+
+    // if (Firebase.RTDB.getString(&fbdo, "/preferences/light/balcony/off")) {
+    //   if (fbdo.dataType() == "string") {
+    //     L_Balcony_OFF = fbdo.stringData();
+    //   }
+    // } else {
+    //   Serial.println(fbdo.errorReason());
+    // }
 
     /* ------------------------------------ TEMPERATURE AND HUMIDITY ------------------------------------ */
     
@@ -187,22 +200,24 @@ void loop() {
     if((currentTemp != DHT11::ERROR_CHECKSUM && currentTemp != DHT11::ERROR_TIMEOUT) || (currentHumidity != DHT11::ERROR_CHECKSUM && currentHumidity != DHT11::ERROR_TIMEOUT)){
 
       // SENDING TEMPERATURE DATA TO FIREBASE
-      if (Firebase.RTDB.setInt(&fbdo, "sreadings/temp", currentTemp)) {
-        Serial.println("PASSED");
-        Serial.println("PATH: " + fbdo.dataPath());
-        Serial.println("TYPE: " + fbdo.dataType());
-      } else {
-        Serial.println(fbdo.errorReason());
-      }
+      writeIntToFirebase(&fbdo,"sreadings/temp",currentTemp);
+      writeIntToFirebase(&fbdo,"sreadings/humidity",currentHumidity);
+      // if (Firebase.RTDB.setInt(&fbdo, "sreadings/temp", currentTemp)) {
+      //   Serial.println("PASSED");
+      //   Serial.println("PATH: " + fbdo.dataPath());
+      //   Serial.println("TYPE: " + fbdo.dataType());
+      // } else {
+      //   Serial.println(fbdo.errorReason());
+      // }
       
       // SENDING HUMIDITY DATA TO FIREBASE
-      if (Firebase.RTDB.setInt(&fbdo, "sreadings/humidity", currentHumidity)) {
-        Serial.println("PASSED");
-        Serial.println("PATH: " + fbdo.dataPath());
-        Serial.println("TYPE: " + fbdo.dataType());
-      } else {
-        Serial.println(fbdo.errorReason());
-      }
+      // if (Firebase.RTDB.setInt(&fbdo, "sreadings/humidity", currentHumidity)) {
+      //   Serial.println("PASSED");
+      //   Serial.println("PATH: " + fbdo.dataPath());
+      //   Serial.println("TYPE: " + fbdo.dataType());
+      // } else {
+      //   Serial.println(fbdo.errorReason());
+      // }
     } else {
       Serial.println(DHT11::getErrorString(currentTemp));
     }    
@@ -221,4 +236,30 @@ void loop() {
   }
 }
 
-// void fetchLightPreferences
+void fetchStringPreferences(FirebaseData fbObj, String path, String localVariable){
+  if (Firebase.RTDB.getString(&fbObj, path)) {
+    if (fbObj.dataType() == "string") {
+      localVariable = fbObj.stringData();
+    }
+  } else {
+    Serial.println(fbObj.errorReason());
+  }
+}
+
+void fetchIntPreferences(FirebaseData fbObj, String path, int localVariable){
+  if (Firebase.RTDB.getInt(&fbObj, path)) {
+    if (fbObj.dataType() == "int") {
+      localVariable = fbObj.intData();
+    }
+  } else {
+    Serial.println(fbObj.errorReason());
+  }
+}
+
+void writeIntToFirebase(FirebaseData fbObj,String path, int data){
+  if (Firebase.RTDB.setInt(&fbObj, path, data)) {
+    Serial.println("Write data successful");
+  } else {
+    Serial.println(fbObj.errorReason());
+  }
+}
