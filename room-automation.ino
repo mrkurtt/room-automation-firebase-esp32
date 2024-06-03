@@ -12,11 +12,9 @@
 // input pins
 #define DHTTYPE DHT11
 #define DHTPIN 2
-// DHT dht(DHTPIN, DHTTYPE);
 
 DHT11 dht11(DHTPIN);
 
-// const int THSensor = 25;
 const int LDR = 2;
 const int PIR = 3;
 const int LightSensor = 32; 
@@ -30,9 +28,24 @@ const int CR_LIGHT = 1;
 const int CURTAIN_SERVO = 1;
 const int FAN = 1;
 
+// sensor values
 int currentTemp;
 int currentHumidity;
+int currentLight;
+int motion;
+
+// preferences
 int minTemp;
+int maxTemp;
+char curtainOPEN[5];
+char curtainCLOSE[5];
+char L_Main_OFF[5];
+char L_Main_ON[5];
+char L_Bed_OFF[5];
+char L_Bed_ON[5];
+char L_Balcony_OFF[5];
+char L_Balcony_ON[5];
+
 
 // Firebase Data object
 FirebaseData fbdo;
@@ -40,15 +53,10 @@ FirebaseAuth auth;
 FirebaseConfig config;
 
 unsigned long sendDataPrevMillis = 0;
-int intValue;
-float floatValue;
 bool signupOK = false;
-
-
 
 void setup() {
   Serial.begin(115200);
-  // dht.begin();
 
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   Serial.print("Connecting to Wi-Fi");
@@ -74,65 +82,135 @@ void setup() {
   }
 
   /* Assign the callback function for the long running token generation task */
-  config.token_status_callback = tokenStatusCallback; //see addons/TokenHelper.h
+  config.token_status_callback = tokenStatusCallback; 
 
   Firebase.begin(&config, &auth);
-  Firebase.reconnectWiFi(true);
-
-  
+  Firebase.reconnectWiFi(true);  
 }
 
+
 void loop() {
-  // int dht11Reading = dht11.readTemperatureHumidity(currentTemp, currentHumidity);
-
-  // 
-
 
   if (Firebase.ready() && signupOK && (millis() - sendDataPrevMillis > 15000 || sendDataPrevMillis == 0)){
     sendDataPrevMillis = millis();
 
+    /* ------------------------------------ TEMPERATURE PREFERENCES ------------------------------------ */
+    if (Firebase.RTDB.getInt(&fbdo, "/preferences/temp/min")) {
+      if (fbdo.dataType() == "int") {
+        minTemp = fbdo.intData();
+      }
+    } else {
+      Serial.println(fbdo.errorReason());
+    }
+
+    if (Firebase.RTDB.getInt(&fbdo, "/preferences/temp/max")) {
+      if (fbdo.dataType() == "int") {
+        maxTemp = fbdo.intData();
+      }
+    } else {
+      Serial.println(fbdo.errorReason());
+    }
+
+    /* ------------------------------------ CURTAIN PREFERENCES ------------------------------------ */
+    if (Firebase.RTDB.getString(&fbdo, "/preferences/curtain/open")) {
+      if (fbdo.dataType() == "string") {
+        curtainOPEN = fbdo.stringData();
+      }
+    } else {
+      Serial.println(fbdo.errorReason());
+    }
+
+    if (Firebase.RTDB.getString(&fbdo, "/preferences/curtain/close")) {
+      if (fbdo.dataType() == "string") {
+        curtainCLOSE = fbdo.stringData();
+      }
+    } else {
+      Serial.println(fbdo.errorReason());
+    }
+
+    /* ------------------------------------ MAIN LIGHT PREFERENCES ------------------------------------ */
+    if (Firebase.RTDB.getString(&fbdo, "/preferences/light/main/on")) {
+      if (fbdo.dataType() == "string") {
+        L_Main_ON = fbdo.stringData();
+      }
+    } else {
+      Serial.println(fbdo.errorReason());
+    }
+
+    if (Firebase.RTDB.getString(&fbdo, "/preferences/light/main/off")) {
+      if (fbdo.dataType() == "string") {
+        L_Main_OFF = fbdo.stringData();
+      }
+    } else {
+      Serial.println(fbdo.errorReason());
+    }
+
+    /* ------------------------------------ BED LIGHT PREFERENCES ------------------------------------ */
+    if (Firebase.RTDB.getString(&fbdo, "/preferences/light/bed/on")) {
+      if (fbdo.dataType() == "string") {
+        L_Bed_ON = fbdo.stringData();
+      }
+    } else {
+      Serial.println(fbdo.errorReason());
+    }
+
+    if (Firebase.RTDB.getString(&fbdo, "/preferences/light/bed/off")) {
+      if (fbdo.dataType() == "string") {
+        L_Bed_OFF = fbdo.stringData();
+      }
+    } else {
+      Serial.println(fbdo.errorReason());
+    }
+
+    /* ------------------------------------ BALCONY LIGHT PREFERENCES ------------------------------------ */
+    if (Firebase.RTDB.getString(&fbdo, "/preferences/light/balcony/on")) {
+      if (fbdo.dataType() == "string") {
+        L_Balcony_ON = fbdo.stringData();
+      }
+    } else {
+      Serial.println(fbdo.errorReason());
+    }
+
+    if (Firebase.RTDB.getString(&fbdo, "/preferences/light/balcony/off")) {
+      if (fbdo.dataType() == "string") {
+        L_Balcony_OFF = fbdo.stringData();
+      }
+    } else {
+      Serial.println(fbdo.errorReason());
+    }
+
+    /* ------------------------------------ TEMPERATURE AND HUMIDITY ------------------------------------ */
+    
     currentTemp = dht11.readTemperature();
     currentHumidity = dht11.readHumidity();
 
     if((currentTemp != DHT11::ERROR_CHECKSUM && currentTemp != DHT11::ERROR_TIMEOUT) || (currentHumidity != DHT11::ERROR_CHECKSUM && currentHumidity != DHT11::ERROR_TIMEOUT)){
-      Serial.println(currentTemp);
-      Serial.println(currentHumidity);
+
+      // SENDING TEMPERATURE DATA TO FIREBASE
+      if (Firebase.RTDB.setInt(&fbdo, "sreadings/temp", currentTemp)) {
+        Serial.println("PASSED");
+        Serial.println("PATH: " + fbdo.dataPath());
+        Serial.println("TYPE: " + fbdo.dataType());
+      } else {
+        Serial.println(fbdo.errorReason());
+      }
+      
+      // SENDING HUMIDITY DATA TO FIREBASE
+      if (Firebase.RTDB.setInt(&fbdo, "sreadings/humidity", currentHumidity)) {
+        Serial.println("PASSED");
+        Serial.println("PATH: " + fbdo.dataPath());
+        Serial.println("TYPE: " + fbdo.dataType());
+      } else {
+        Serial.println(fbdo.errorReason());
+      }
     } else {
       Serial.println(DHT11::getErrorString(currentTemp));
-    }
-
-    Serial.println(currentTemp, currentHumidity); 
-
-    if (Firebase.RTDB.getInt(&fbdo, "/preferences/temp/min")) {
-      if (fbdo.dataType() == "int") {
-        minTemp = fbdo.intData();
-        Serial.print("Min temp: ");
-        Serial.println(minTemp);
-      }
-    }
-    else {
-      Serial.println(fbdo.errorReason());
-    }
+    }    
 
 
-    if (Firebase.RTDB.setInt(&fbdo, "sreadings/temp", currentTemp)) {
-      Serial.println("PASSED");
-      Serial.println("PATH: " + fbdo.dataPath());
-      Serial.println("TYPE: " + fbdo.dataType());
-    } else {
-      Serial.println(fbdo.errorReason());
-    }
+    /* ------------------------------------ LIGHT ------------------------------------ */
+    currentLight = analogRead(LightSensor);
 
-    if (Firebase.RTDB.setInt(&fbdo, "sreadings/humidity", currentHumidity)) {
-      Serial.println("PASSED");
-      Serial.println("PATH: " + fbdo.dataPath());
-      Serial.println("TYPE: " + fbdo.dataType());
-    } else {
-      Serial.println(fbdo.errorReason());
-    }
-    
-    int currentLight = analogRead(LightSensor);
-    Serial.println(currentLight);
     if (Firebase.RTDB.setInt(&fbdo, "sreadings/light", currentLight)) {
       Serial.println("PASSED");
       Serial.println("PATH: " + fbdo.dataPath());
@@ -142,3 +220,5 @@ void loop() {
     }
   }
 }
+
+// void fetchLightPreferences
