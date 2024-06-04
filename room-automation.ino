@@ -1,12 +1,13 @@
-#include <WiFi.h>;
-#include <DHT11.h>;
-#include <time.h>;
-#include <Firebase_ESP_Client.h>;
+#include <WiFi.h>
+#include <DHT11.h>
+#include <time.h>
+#include <ESP32Servo.h>
+#include <Firebase_ESP_Client.h>
 #include "addons/TokenHelper.h";
 #include "addons/RTDBHelper.h";
 
-#define WIFI_SSID "rukit"
-#define WIFI_PASSWORD "dgmkcL17"
+#define WIFI_SSID "Lord of the pings"
+#define WIFI_PASSWORD "Wicanfi_"
 #define API_KEY "AIzaSyBBAAsk48P-LNLwBfjMXPJ67F-32aMX2m0"
 #define DATABASE_URL "https://room-automation-1a1bd-default-rtdb.asia-southeast1.firebasedatabase.app/" 
 
@@ -15,30 +16,36 @@
 #define DHTPIN 2
 
 DHT11 dht11(DHTPIN);
+Servo curtainServo;
 
 const int LDR = 2; 
-const int PIR = 3;
 const int LightSensor = 32; 
-const int sendSuccess = 12;
+const int sendSuccess = 12; 
 
 // output pins
 const int MAIN_LIGHT = 1;
 const int BED_LIGHT = 1;
 const int BALCONY_LIGHT = 1;
 const int CR_LIGHT = 1;
-
-const int CURTAIN_SERVO = 1;
+const int CURTAIN_SERVO = 22;
 const int FAN = 14;
 
 // sensor values
 int currentTemp;
 int currentHumidity;
 int currentLight;
-int motion;
 
 // String initializers
 String lightDescription = "";
 String Date_str, Time_str;
+String currentTime;
+
+// int initializers
+int servoPos = 0;
+int h_CURRENT;
+int m_CURRENT;
+int isCurtainOpen=0;
+int motionData;
 
 // preferences
 int minTemp;
@@ -65,8 +72,8 @@ void setup() {
   Serial.begin(115200);
 
   pinMode(sendSuccess,OUTPUT);
-  pinMode(FAN,OUTPUT);
-  
+  pinMode(PIR,INPUT);
+  pinMode(FAN,OUTPUT);  
 
   // CONNECT TO WIFI
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
@@ -83,7 +90,6 @@ void setup() {
   Serial.println();
 
   configTime(0, 0, "pool.ntp.org", "time.nist.gov");
-  // See https://github.com/nayarsystems/posix_tz_db/blob/master/zones.csv for Timezone codes for your region
   setenv("TZ", "PST-8", 1);
 
   // FIREBASE AUTHENTICATION
@@ -98,26 +104,27 @@ void setup() {
     Serial.printf("%s\n", config.signer.signupError.message.c_str());
   }
 
-  /* Assign the callback function for the long running token generation task */
   config.token_status_callback = tokenStatusCallback; 
 
   Firebase.begin(&config, &auth);
   Firebase.reconnectWiFi(true);  
 }
 
+int h_OPEN;
+int m_OPEN;
+int h_CLOSE;
+int m_CLOSE;
 
 void loop() {
   
-  
+  /* ------------------------------------ READ SENSOR VALUES ------------------------------------ */
+  currentTemp = dht11.readTemperature();
+  currentHumidity = dht11.readHumidity();
+  currentLight = analogRead(LightSensor);
+  motion = digitalRead(PIR);
 
   if (Firebase.ready() && signupOK && (millis() - sendDataPrevMillis > 5000 || sendDataPrevMillis == 0)){
     sendDataPrevMillis = millis();
-
-    /* ------------------------------------ READ SENSOR VALUES ------------------------------------ */
-    currentTemp = dht11.readTemperature();
-    currentHumidity = dht11.readHumidity();
-    currentLight = analogRead(LightSensor);
-
     /* ------------------------------------ TEMPERATURE PREFERENCES ------------------------------------ */
     if (Firebase.RTDB.getInt(&fbdo, "/preferences/temp/min")) {
       if (fbdo.dataType() == "int") {
@@ -140,20 +147,28 @@ void loop() {
     if (Firebase.RTDB.getString(&fbdo, "/preferences/curtain/open")) {
       if (fbdo.dataType() == "string") {
         curtainOPEN = fbdo.stringData();
+
+        int endIndex = curtainOPEN.indexOf(":");
+        h_OPEN = curtainOPEN.substring(0, endIndex).toInt();
+        m_OPEN = curtainOPEN.substring(endIndex + 1, curtainOPEN.length()).toInt();        
       }
     } else {
       Serial.println(fbdo.errorReason());
     }
+
     if (Firebase.RTDB.getString(&fbdo, "/preferences/curtain/close")) {
       if (fbdo.dataType() == "string") {
         curtainCLOSE = fbdo.stringData();
+
+        int endIndex = curtainCLOSE.indexOf(":");
+        h_CLOSE = curtainCLOSE.substring(0, endIndex).toInt();
+        m_CLOSE = curtainCLOSE.substring(endIndex + 1, curtainCLOSE.length()).toInt();
       }
     } else {
       Serial.println(fbdo.errorReason());
     }
 
     /* ------------------------------------ MAIN LIGHT PREFERENCES ------------------------------------ */
-
     if (Firebase.RTDB.getString(&fbdo, "/preferences/light/main/on")) {
       if (fbdo.dataType() == "string") {
         L_Main_ON = fbdo.stringData();
@@ -206,23 +221,12 @@ void loop() {
     }
 
     /* ------------------------------------ TEMPERATURE AND HUMIDITY ------------------------------------ */   
-
-
     if((currentTemp != DHT11::ERROR_CHECKSUM && currentTemp != DHT11::ERROR_TIMEOUT) || (currentHumidity != DHT11::ERROR_CHECKSUM && currentHumidity != DHT11::ERROR_TIMEOUT)){
 
       // SENDING TEMPERATURE DATA TO FIREBASE
       if (Firebase.RTDB.setInt(&fbdo, "sreadings/temp", currentTemp)) {
-        lightSuccessON();
-
-        if(currentTemp > maxTemp){
-          digitalWrite(FAN, HIGH);
-        } else {
-          digitalWrite(FAN, LOW);
-        }
-
-        
-        Serial.println("PATH: " + fbdo.dataPath());
-        
+        lightSuccessON();        
+        Serial.println("PATH: " + fbdo.dataPath());        
       } else {
         Serial.println(fbdo.errorReason());
       }
@@ -236,12 +240,13 @@ void loop() {
       } else {
         Serial.println(fbdo.errorReason());
       }
+
     } else {
       Serial.println(DHT11::getErrorString(currentTemp));
     }    
 
 
-    /* ------------------------------------ LIGHT ------------------------------------ */   
+    /* ------------------------------------ LIGHT ------------------------------------ */  
 
     if(currentLight > 2000){
       lightDescription = "Bright";
@@ -263,9 +268,32 @@ void loop() {
     }
   }
 
+
+
   delay(1000);
-  Serial.println(get_time());
+
+  currentTime = get_time();
+  int endIndex_CURRENT = currentTime.indexOf(":");
+  h_CURRENT = currentTime.substring(0, endIndex_CURRENT).toInt();
+  m_CURRENT = currentTime.substring(endIndex_CURRENT + 1, currentTime.length()).toInt();
   
+  Serial.print("Current Time:");
+  Serial.println(h_CURRENT);
+  Serial.println(m_CURRENT);
+
+  if(h_CURRENT >= h_OPEN  && h_CURRENT <= h_CLOSE){      
+    if(!isCurtainOpen){
+      Serial.println("true");
+      openCurtain();
+      isCurtainOpen = 1;
+    }      
+  } else {
+    Serial.println("false");
+    if(isCurtainOpen){
+      closeCurtain();
+      isCurtainOpen = 0;
+    }    
+  }
 }
 
 void lightSuccessON(){
@@ -274,11 +302,37 @@ void lightSuccessON(){
   digitalWrite(sendSuccess, LOW);
 }
 
+void turnFanON(){
+  if(currentTemp > maxTemp){
+    digitalWrite(FAN, HIGH);
+  } else {
+    digitalWrite(FAN, LOW);
+  }
+}
+
+void openCurtain(){
+  curtainServo.attach(CURTAIN_SERVO);
+  for (servoPos = 180; servoPos >= 0; servoPos -= 1) { 
+    curtainServo.write(servoPos);              
+    delay(15);                     
+  }
+  curtainServo.detach();
+}
+
+void closeCurtain(){
+  curtainServo.attach(CURTAIN_SERVO);
+  for (servoPos = 0; servoPos <= 180; servoPos += 1) { 
+    curtainServo.write(servoPos);              
+    delay(15);                     
+  }
+  curtainServo.detach();
+}
+
 String get_time(){
   time_t now;
   time(&now);
-  char time_output[30];
-  strftime(time_output, 30, "%a  %d-%m-%y %T", localtime(&now)); 
-  return String(time_output); // returns Sat 20-Apr-19 12:31:45
+  char time_output[6];
+  strftime(time_output, 6, "%T", localtime(&now)); 
+  return String(time_output);
 }
 
