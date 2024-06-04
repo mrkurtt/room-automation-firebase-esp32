@@ -1,5 +1,6 @@
 #include <WiFi.h>;
 #include <DHT11.h>;
+#include <time.h>;
 #include <Firebase_ESP_Client.h>;
 #include "addons/TokenHelper.h";
 #include "addons/RTDBHelper.h";
@@ -15,9 +16,10 @@
 
 DHT11 dht11(DHTPIN);
 
-const int LDR = 2;
+const int LDR = 2; 
 const int PIR = 3;
 const int LightSensor = 32; 
+const int sendSuccess = 12;
 
 // output pins
 const int MAIN_LIGHT = 1;
@@ -26,13 +28,17 @@ const int BALCONY_LIGHT = 1;
 const int CR_LIGHT = 1;
 
 const int CURTAIN_SERVO = 1;
-const int FAN = 1;
+const int FAN = 14;
 
 // sensor values
 int currentTemp;
 int currentHumidity;
 int currentLight;
 int motion;
+
+// String initializers
+String lightDescription = "";
+String Date_str, Time_str;
 
 // preferences
 int minTemp;
@@ -58,6 +64,10 @@ bool signupOK = false;
 void setup() {
   Serial.begin(115200);
 
+  pinMode(sendSuccess,OUTPUT);
+  pinMode(FAN,OUTPUT);
+  
+
   // CONNECT TO WIFI
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   Serial.print("Connecting to Wi-Fi");
@@ -71,6 +81,10 @@ void setup() {
   Serial.print("Connected with IP: ");
   Serial.println(WiFi.localIP());
   Serial.println();
+
+  configTime(0, 0, "pool.ntp.org", "time.nist.gov");
+  // See https://github.com/nayarsystems/posix_tz_db/blob/master/zones.csv for Timezone codes for your region
+  setenv("TZ", "PST-8", 1);
 
   // FIREBASE AUTHENTICATION
   config.api_key = API_KEY;
@@ -93,9 +107,16 @@ void setup() {
 
 
 void loop() {
+  
+  
 
-  if (Firebase.ready() && signupOK && (millis() - sendDataPrevMillis > 15000 || sendDataPrevMillis == 0)){
+  if (Firebase.ready() && signupOK && (millis() - sendDataPrevMillis > 5000 || sendDataPrevMillis == 0)){
     sendDataPrevMillis = millis();
+
+    /* ------------------------------------ READ SENSOR VALUES ------------------------------------ */
+    currentTemp = dht11.readTemperature();
+    currentHumidity = dht11.readHumidity();
+    currentLight = analogRead(LightSensor);
 
     /* ------------------------------------ TEMPERATURE PREFERENCES ------------------------------------ */
     if (Firebase.RTDB.getInt(&fbdo, "/preferences/temp/min")) {
@@ -184,27 +205,34 @@ void loop() {
       Serial.println(fbdo.errorReason());
     }
 
-    /* ------------------------------------ TEMPERATURE AND HUMIDITY ------------------------------------ */
-    
-    currentTemp = dht11.readTemperature();
-    currentHumidity = dht11.readHumidity();
+    /* ------------------------------------ TEMPERATURE AND HUMIDITY ------------------------------------ */   
+
 
     if((currentTemp != DHT11::ERROR_CHECKSUM && currentTemp != DHT11::ERROR_TIMEOUT) || (currentHumidity != DHT11::ERROR_CHECKSUM && currentHumidity != DHT11::ERROR_TIMEOUT)){
 
       // SENDING TEMPERATURE DATA TO FIREBASE
       if (Firebase.RTDB.setInt(&fbdo, "sreadings/temp", currentTemp)) {
-        Serial.println("PASSED");
+        lightSuccessON();
+
+        if(currentTemp > maxTemp){
+          digitalWrite(FAN, HIGH);
+        } else {
+          digitalWrite(FAN, LOW);
+        }
+
+        
         Serial.println("PATH: " + fbdo.dataPath());
-        Serial.println("TYPE: " + fbdo.dataType());
+        
       } else {
         Serial.println(fbdo.errorReason());
       }
       
       //SENDING HUMIDITY DATA TO FIREBASE
       if (Firebase.RTDB.setInt(&fbdo, "sreadings/humidity", currentHumidity)) {
-        Serial.println("PASSED");
+        lightSuccessON();
+        
         Serial.println("PATH: " + fbdo.dataPath());
-        Serial.println("TYPE: " + fbdo.dataType());
+        
       } else {
         Serial.println(fbdo.errorReason());
       }
@@ -213,16 +241,44 @@ void loop() {
     }    
 
 
-    /* ------------------------------------ LIGHT ------------------------------------ */
-    currentLight = analogRead(LightSensor);
+    /* ------------------------------------ LIGHT ------------------------------------ */   
 
-    if (Firebase.RTDB.setInt(&fbdo, "sreadings/light", currentLight)) {
-      Serial.println("PASSED");
+    if(currentLight > 2000){
+      lightDescription = "Bright";
+    } else if (currentLight > 1000 && currentLight < 2000){
+      lightDescription = "Light";
+    } else if (currentLight > 80 && currentLight < 1000){
+      lightDescription = "Dim";
+    } else {
+      lightDescription = "Dark";
+    }
+
+    if (Firebase.RTDB.setString(&fbdo, "sreadings/light", lightDescription)) {
+      lightSuccessON();
+      
       Serial.println("PATH: " + fbdo.dataPath());
-      Serial.println("TYPE: " + fbdo.dataType());
+      
     } else {
       Serial.println(fbdo.errorReason());
     }
   }
+
+  delay(1000);
+  Serial.println(get_time());
+  
+}
+
+void lightSuccessON(){
+  digitalWrite(sendSuccess, HIGH);
+  delay(500);
+  digitalWrite(sendSuccess, LOW);
+}
+
+String get_time(){
+  time_t now;
+  time(&now);
+  char time_output[30];
+  strftime(time_output, 30, "%a  %d-%m-%y %T", localtime(&now)); 
+  return String(time_output); // returns Sat 20-Apr-19 12:31:45
 }
 
