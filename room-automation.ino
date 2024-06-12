@@ -18,13 +18,12 @@
 DHT11 dht11(DHTPIN);
 Servo curtainServo;
 
-const int LDR = 2; 
-const int LightSensor = 32; 
+const int LightSensor = 4; 
 const int sendSuccess = 12; 
 
 // output pins
 const int MAIN_LIGHT = 5;
-const int BED_LIGHT = 18;
+const int BED_LIGHT = 23;
 const int CR_LIGHT = 19;
 
 const int BALCONY_LIGHT = 0;
@@ -79,6 +78,7 @@ void setup() {
   pinMode(BED_LIGHT,OUTPUT);  
   pinMode(CR_LIGHT,OUTPUT);  
   pinMode(BALCONY_LIGHT,OUTPUT);    
+  // pinMode(LightSensor, INPUT);    
 
   isCurtainOpen = 0;
 
@@ -96,6 +96,7 @@ void setup() {
   Serial.println(WiFi.localIP());
   Serial.println();
 
+  // Time API
   configTime(0, 0, "pool.ntp.org", "time.nist.gov");
   setenv("TZ", "PST-8", 1);
 
@@ -230,6 +231,8 @@ void loop() {
 
 
     /* ------------------------------------ LIGHT ------------------------------------ */  
+    Serial.print("Light: ");
+    Serial.println(currentLight);
     if(currentLight > 2000){
       lightDescription = "Bright";
       digitalWrite(BALCONY_LIGHT, LOW);
