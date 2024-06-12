@@ -6,8 +6,8 @@
 #include "addons/TokenHelper.h";
 #include "addons/RTDBHelper.h";
 
-#define WIFI_SSID "Lord of the pings"
-#define WIFI_PASSWORD "Wicanfi_"
+#define WIFI_SSID "Plus"
+#define WIFI_PASSWORD "atleast8characters"
 #define API_KEY "AIzaSyBBAAsk48P-LNLwBfjMXPJ67F-32aMX2m0"
 #define DATABASE_URL "https://room-automation-1a1bd-default-rtdb.asia-southeast1.firebasedatabase.app/" 
 
@@ -23,12 +23,14 @@ const int LightSensor = 32;
 const int sendSuccess = 12; 
 
 // output pins
-const int MAIN_LIGHT = 1;
-const int BED_LIGHT = 1;
-const int BALCONY_LIGHT = 1;
-const int CR_LIGHT = 1;
+const int MAIN_LIGHT = 5;
+const int BED_LIGHT = 18;
+const int CR_LIGHT = 19;
+
+const int BALCONY_LIGHT = 0;
+
 const int CURTAIN_SERVO = 22;
-const int FAN = 14;
+const int FAN = 18;
 
 // sensor values
 int currentTemp;
@@ -44,7 +46,7 @@ String currentTime;
 int servoPos = 0;
 int h_CURRENT;
 int m_CURRENT;
-int isCurtainOpen=0;
+int isCurtainOpen;
 int motionData;
 
 // preferences
@@ -52,10 +54,9 @@ int minTemp;
 int maxTemp;
 String curtainOPEN;
 String curtainCLOSE;
-String L_Main_OFF;
-String L_Main_ON;
-String L_Bed_OFF;
-String L_Bed_ON;
+bool L_Main_State;
+bool L_Bed_State;
+bool L_CR_State;
 String L_Balcony_OFF;
 String L_Balcony_ON;
 
@@ -72,8 +73,14 @@ void setup() {
   Serial.begin(115200);
 
   pinMode(sendSuccess,OUTPUT);
-  pinMode(PIR,INPUT);
   pinMode(FAN,OUTPUT);  
+
+  pinMode(MAIN_LIGHT,OUTPUT);  
+  pinMode(BED_LIGHT,OUTPUT);  
+  pinMode(CR_LIGHT,OUTPUT);  
+  pinMode(BALCONY_LIGHT,OUTPUT);    
+
+  isCurtainOpen = 0;
 
   // CONNECT TO WIFI
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
@@ -121,9 +128,12 @@ void loop() {
   currentTemp = dht11.readTemperature();
   currentHumidity = dht11.readHumidity();
   currentLight = analogRead(LightSensor);
-  motion = digitalRead(PIR);
 
-  if (Firebase.ready() && signupOK && (millis() - sendDataPrevMillis > 5000 || sendDataPrevMillis == 0)){
+  Serial.print("Temp: ");
+  Serial.println(currentTemp);
+
+
+  if (Firebase.ready() && signupOK && (millis() - sendDataPrevMillis > 3000 || sendDataPrevMillis == 0)){
     sendDataPrevMillis = millis();
     /* ------------------------------------ TEMPERATURE PREFERENCES ------------------------------------ */
     if (Firebase.RTDB.getInt(&fbdo, "/preferences/temp/min")) {
@@ -169,52 +179,27 @@ void loop() {
     }
 
     /* ------------------------------------ MAIN LIGHT PREFERENCES ------------------------------------ */
-    if (Firebase.RTDB.getString(&fbdo, "/preferences/light/main/on")) {
-      if (fbdo.dataType() == "string") {
-        L_Main_ON = fbdo.stringData();
-      }
-    } else {
-      Serial.println(fbdo.errorReason());
-    }
-
-    if (Firebase.RTDB.getString(&fbdo, "/preferences/light/main/off")) {
-      if (fbdo.dataType() == "string") {
-        L_Main_OFF = fbdo.stringData();
+    if (Firebase.RTDB.getBool(&fbdo, "/preferences/light/main/state")) {
+      if (fbdo.dataType() == "boolean") {
+        L_Main_State = fbdo.boolData();
       }
     } else {
       Serial.println(fbdo.errorReason());
     }
 
     /* ------------------------------------ BED LIGHT PREFERENCES ------------------------------------ */
-    if (Firebase.RTDB.getString(&fbdo, "/preferences/light/bed/on")) {
-      if (fbdo.dataType() == "string") {
-        L_Bed_ON = fbdo.stringData();
+    if (Firebase.RTDB.getBool(&fbdo, "/preferences/light/bed/state")) {
+      if (fbdo.dataType() == "boolean") {
+        L_Bed_State = fbdo.boolData();
       }
     } else {
       Serial.println(fbdo.errorReason());
     }
 
-    if (Firebase.RTDB.getString(&fbdo, "/preferences/light/bed/off")) {
-      if (fbdo.dataType() == "string") {
-        L_Bed_OFF = fbdo.stringData();
-      }
-    } else {
-      Serial.println(fbdo.errorReason());
-    }
-
-    /* ------------------------------------ BALCONY LIGHT PREFERENCES ------------------------------------ */
-
-    if (Firebase.RTDB.getString(&fbdo, "/preferences/light/balcony/on")) {
-      if (fbdo.dataType() == "string") {
-        L_Balcony_ON = fbdo.stringData();
-      }
-    } else {
-      Serial.println(fbdo.errorReason());
-    }
-
-    if (Firebase.RTDB.getString(&fbdo, "/preferences/light/balcony/off")) {
-      if (fbdo.dataType() == "string") {
-        L_Balcony_OFF = fbdo.stringData();
+    /* ------------------------------------ CR LIGHT PREFERENCES ------------------------------------ */
+    if (Firebase.RTDB.getBool(&fbdo, "/preferences/light/cr/state")) {
+      if (fbdo.dataType() == "boolean") {
+        L_CR_State = fbdo.boolData();
       }
     } else {
       Serial.println(fbdo.errorReason());
@@ -226,17 +211,15 @@ void loop() {
       // SENDING TEMPERATURE DATA TO FIREBASE
       if (Firebase.RTDB.setInt(&fbdo, "sreadings/temp", currentTemp)) {
         lightSuccessON();        
-        Serial.println("PATH: " + fbdo.dataPath());        
+        // Serial.println("PATH: " + fbdo.dataPath());        
       } else {
         Serial.println(fbdo.errorReason());
       }
       
       //SENDING HUMIDITY DATA TO FIREBASE
       if (Firebase.RTDB.setInt(&fbdo, "sreadings/humidity", currentHumidity)) {
-        lightSuccessON();
-        
-        Serial.println("PATH: " + fbdo.dataPath());
-        
+        lightSuccessON();        
+        // Serial.println("PATH: " + fbdo.dataPath());        
       } else {
         Serial.println(fbdo.errorReason());
       }
@@ -247,28 +230,59 @@ void loop() {
 
 
     /* ------------------------------------ LIGHT ------------------------------------ */  
-
     if(currentLight > 2000){
       lightDescription = "Bright";
+      digitalWrite(BALCONY_LIGHT, LOW);
     } else if (currentLight > 1000 && currentLight < 2000){
       lightDescription = "Light";
+      digitalWrite(BALCONY_LIGHT, LOW);
     } else if (currentLight > 80 && currentLight < 1000){
       lightDescription = "Dim";
+      digitalWrite(BALCONY_LIGHT, HIGH);
     } else {
       lightDescription = "Dark";
+      digitalWrite(BALCONY_LIGHT, HIGH);
     }
 
     if (Firebase.RTDB.setString(&fbdo, "sreadings/light", lightDescription)) {
       lightSuccessON();
-      
-      Serial.println("PATH: " + fbdo.dataPath());
-      
     } else {
       Serial.println(fbdo.errorReason());
     }
   }
 
+  Serial.print("Main: ");
+  Serial.println(L_Main_State);
 
+  Serial.print("Bed: ");
+  Serial.println(L_Bed_State);
+
+  Serial.print("CR: ");
+  Serial.println(L_CR_State);
+
+  if(L_Main_State){
+    digitalWrite(MAIN_LIGHT, HIGH);
+  } else {
+    digitalWrite(MAIN_LIGHT, LOW);
+  }
+
+  if(L_Bed_State){
+    digitalWrite(BED_LIGHT, HIGH);
+  } else {
+    digitalWrite(BED_LIGHT, LOW);
+  }
+
+  if(L_CR_State){
+    digitalWrite(CR_LIGHT, HIGH);
+  } else {
+    digitalWrite(CR_LIGHT, LOW);
+  }
+
+  if(currentTemp >= maxTemp){
+    digitalWrite(FAN, HIGH);
+  } else {
+    digitalWrite(FAN, LOW);
+  }
 
   delay(1000);
 
@@ -277,23 +291,23 @@ void loop() {
   h_CURRENT = currentTime.substring(0, endIndex_CURRENT).toInt();
   m_CURRENT = currentTime.substring(endIndex_CURRENT + 1, currentTime.length()).toInt();
   
-  Serial.print("Current Time:");
+  Serial.print("Current Time: ");
   Serial.println(h_CURRENT);
   Serial.println(m_CURRENT);
 
-  if(h_CURRENT >= h_OPEN  && h_CURRENT <= h_CLOSE){      
-    if(!isCurtainOpen){
-      Serial.println("true");
-      openCurtain();
-      isCurtainOpen = 1;
+  if(h_CURRENT >= h_OPEN  && h_CURRENT <= h_CLOSE){     
+    if(isCurtainOpen == 0){
+      openCurtain();  
     }      
   } else {
-    Serial.println("false");
-    if(isCurtainOpen){
+    Serial.println("Out of range");
+    if(isCurtainOpen == 1){
       closeCurtain();
-      isCurtainOpen = 0;
     }    
   }
+
+  Serial.print("isCurtainOpen: ");
+  Serial.println(isCurtainOpen);
 }
 
 void lightSuccessON(){
@@ -302,29 +316,21 @@ void lightSuccessON(){
   digitalWrite(sendSuccess, LOW);
 }
 
-void turnFanON(){
-  if(currentTemp > maxTemp){
-    digitalWrite(FAN, HIGH);
-  } else {
-    digitalWrite(FAN, LOW);
-  }
-}
-
 void openCurtain(){
   curtainServo.attach(CURTAIN_SERVO);
-  for (servoPos = 180; servoPos >= 0; servoPos -= 1) { 
-    curtainServo.write(servoPos);              
-    delay(15);                     
-  }
+  isCurtainOpen = 1;
+  
+  curtainServo.writeMicroseconds(1000);  
+  delay(2700);
   curtainServo.detach();
 }
 
 void closeCurtain(){
   curtainServo.attach(CURTAIN_SERVO);
-  for (servoPos = 0; servoPos <= 180; servoPos += 1) { 
-    curtainServo.write(servoPos);              
-    delay(15);                     
-  }
+  isCurtainOpen = 0;
+  
+  curtainServo.writeMicroseconds(2000);  
+  delay(2700);
   curtainServo.detach();
 }
 
