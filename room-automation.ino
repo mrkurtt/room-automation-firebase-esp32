@@ -18,7 +18,7 @@
 DHT11 dht11(DHTPIN);
 Servo curtainServo;
 
-const int LightSensor = 4; 
+const int LIGHT_SENSOR = 34; 
 const int sendSuccess = 12; 
 
 // output pins
@@ -51,14 +51,21 @@ int motionData;
 // preferences
 int minTemp;
 int maxTemp;
+
 String curtainOPEN;
 String curtainCLOSE;
+
+int h_OPEN;
+int m_OPEN;
+int h_CLOSE;
+int m_CLOSE;
+
 bool L_Main_State;
 bool L_Bed_State;
 bool L_CR_State;
+
 String L_Balcony_OFF;
 String L_Balcony_ON;
-
 
 // Firebase Data object
 FirebaseData fbdo;
@@ -78,7 +85,7 @@ void setup() {
   pinMode(BED_LIGHT,OUTPUT);  
   pinMode(CR_LIGHT,OUTPUT);  
   pinMode(BALCONY_LIGHT,OUTPUT);    
-  // pinMode(LightSensor, INPUT);    
+  pinMode(LIGHT_SENSOR, INPUT);    
 
   isCurtainOpen = 0;
 
@@ -118,23 +125,20 @@ void setup() {
   Firebase.reconnectWiFi(true);  
 }
 
-int h_OPEN;
-int m_OPEN;
-int h_CLOSE;
-int m_CLOSE;
-
 void loop() {
   
   /* ------------------------------------ READ SENSOR VALUES ------------------------------------ */
   currentTemp = dht11.readTemperature();
   currentHumidity = dht11.readHumidity();
-  currentLight = analogRead(LightSensor);
+  currentLight = analogRead(LIGHT_SENSOR);
 
   Serial.print("Temp: ");
   Serial.println(currentTemp);
 
+  Serial.print("Light: ");
+  Serial.println(currentLight);
 
-  if (Firebase.ready() && signupOK && (millis() - sendDataPrevMillis > 3000 || sendDataPrevMillis == 0)){
+  if (Firebase.ready() && signupOK && (millis() - sendDataPrevMillis > 1500 || sendDataPrevMillis == 0)){
     sendDataPrevMillis = millis();
     /* ------------------------------------ TEMPERATURE PREFERENCES ------------------------------------ */
     if (Firebase.RTDB.getInt(&fbdo, "/preferences/temp/min")) {
@@ -231,8 +235,7 @@ void loop() {
 
 
     /* ------------------------------------ LIGHT ------------------------------------ */  
-    Serial.print("Light: ");
-    Serial.println(currentLight);
+    
     if(currentLight > 2000){
       lightDescription = "Bright";
       digitalWrite(BALCONY_LIGHT, LOW);
@@ -254,14 +257,14 @@ void loop() {
     }
   }
 
-  Serial.print("Main: ");
-  Serial.println(L_Main_State);
+  // Serial.print("Main: ");
+  // Serial.println(L_Main_State);
 
-  Serial.print("Bed: ");
-  Serial.println(L_Bed_State);
+  // Serial.print("Bed: ");
+  // Serial.println(L_Bed_State);
 
-  Serial.print("CR: ");
-  Serial.println(L_CR_State);
+  // Serial.print("CR: ");
+  // Serial.println(L_CR_State);
 
   if(L_Main_State){
     digitalWrite(MAIN_LIGHT, HIGH);
@@ -298,10 +301,16 @@ void loop() {
   Serial.println(h_CURRENT);
   Serial.println(m_CURRENT);
 
-  if(h_CURRENT >= h_OPEN  && h_CURRENT <= h_CLOSE){     
+  if(h_CURRENT >= h_OPEN  && h_CURRENT <= h_CLOSE){ // within open and close
     if(isCurtainOpen == 0){
-      openCurtain();  
-    }      
+      if(h_CURRENT == h_OPEN){ // if same hour 
+        if (m_CURRENT >= m_OPEN && m_CURRENT <= m_CLOSE){ // min is within minute open and close 
+          openCurtain();  
+        }
+      } else {
+        openCurtain();  
+      }
+    }            
   } else {
     Serial.println("Out of range");
     if(isCurtainOpen == 1){
