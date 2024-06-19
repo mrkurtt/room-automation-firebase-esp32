@@ -18,6 +18,7 @@
 DHT11 dht11(DHTPIN);
 Servo curtainServo;
 
+const int INTERRUPT_PIN = 26;
 const int LIGHT_SENSOR = 34; 
 const int sendSuccess = 12; 
 
@@ -85,7 +86,10 @@ void setup() {
   pinMode(BED_LIGHT,OUTPUT);  
   pinMode(CR_LIGHT,OUTPUT);  
   pinMode(BALCONY_LIGHT,OUTPUT);    
-  pinMode(LIGHT_SENSOR, INPUT);    
+  pinMode(LIGHT_SENSOR, INPUT);  
+
+  pinMode(INTERRUPT_PIN, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(INTERRUPT_PIN), triggerInterrupt, RISING);  
 
   isCurtainOpen = 0;
 
@@ -320,6 +324,11 @@ void loop() {
 
   Serial.print("isCurtainOpen: ");
   Serial.println(isCurtainOpen);
+}
+
+void triggerInterrupt(){
+  Serial.println("INTERRUPT BUTTON");
+  setup();
 }
 
 void lightSuccessON(){
