@@ -20,7 +20,7 @@ Servo curtainServo;
 
 const int INTERRUPT_PIN = 26;
 const int LIGHT_SENSOR = 34; 
-const int sendSuccess = 12; 
+
 
 // output pins
 const int MAIN_LIGHT = 5;
@@ -31,6 +31,7 @@ const int BALCONY_LIGHT = 0;
 
 const int CURTAIN_SERVO = 22;
 const int FAN = 18;
+const int SETUP_INDICATOR = 14; 
 
 // sensor values
 int currentTemp;
@@ -79,8 +80,9 @@ bool signupOK = false;
 void setup() {
   Serial.begin(115200);
 
-  pinMode(sendSuccess,OUTPUT);
   pinMode(FAN,OUTPUT);  
+
+  pinMode(SETUP_INDICATOR,OUTPUT);
 
   pinMode(MAIN_LIGHT,OUTPUT);  
   pinMode(BED_LIGHT,OUTPUT);  
@@ -92,6 +94,8 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(INTERRUPT_PIN), triggerInterrupt, RISING);  
 
   isCurtainOpen = 0;
+
+  setupLight();
 
   // CONNECT TO WIFI
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
@@ -219,7 +223,7 @@ void loop() {
 
       // SENDING TEMPERATURE DATA TO FIREBASE
       if (Firebase.RTDB.setInt(&fbdo, "sreadings/temp", currentTemp)) {
-        lightSuccessON();        
+                
         // Serial.println("PATH: " + fbdo.dataPath());        
       } else {
         Serial.println(fbdo.errorReason());
@@ -227,7 +231,7 @@ void loop() {
       
       //SENDING HUMIDITY DATA TO FIREBASE
       if (Firebase.RTDB.setInt(&fbdo, "sreadings/humidity", currentHumidity)) {
-        lightSuccessON();        
+                
         // Serial.println("PATH: " + fbdo.dataPath());        
       } else {
         Serial.println(fbdo.errorReason());
@@ -255,7 +259,7 @@ void loop() {
     }
 
     if (Firebase.RTDB.setString(&fbdo, "sreadings/light", lightDescription)) {
-      lightSuccessON();
+      
     } else {
       Serial.println(fbdo.errorReason());
     }
@@ -305,36 +309,46 @@ void loop() {
   Serial.println(h_CURRENT);
   Serial.println(m_CURRENT);
 
-  if(h_CURRENT >= h_OPEN  && h_CURRENT <= h_CLOSE){ // within open and close
+  if(h_CURRENT >= h_OPEN  && h_CURRENT <= h_CLOSE){
     if(isCurtainOpen == 0){
-      if(h_CURRENT == h_OPEN){ // if same hour 
-        if (m_CURRENT >= m_OPEN && m_CURRENT <= m_CLOSE){ // min is within minute open and close 
-          openCurtain();  
-        }
-      } else {
-        openCurtain();  
-      }
-    }            
+      openCurtain();  
+    } 
   } else {
-    Serial.println("Out of range");
     if(isCurtainOpen == 1){
       closeCurtain();
     }    
   }
+
+  // if ((h_CURRENT > h_OPEN || (h_CURRENT == h_OPEN && m_CURRENT >= m_OPEN)) && 
+  //       (h_CURRENT < h_CLOSE || (h_CURRENT == h_CLOSE && m_CURRENT <= m_CLOSE))) { 
+  //       // Within the open and close time range
+  //   if (isCurtainOpen == 0) {
+  //     openCurtain();
+  //   }
+  // } else {
+  //   Serial.println("Out of range");
+  //   if (isCurtainOpen == 1) {
+  //     closeCurtain();
+  //   }
+  // }
 
   Serial.print("isCurtainOpen: ");
   Serial.println(isCurtainOpen);
 }
 
 void triggerInterrupt(){
-  Serial.println("INTERRUPT BUTTON");
+  Serial.println("INTERRUPT TRIGGER");
   setup();
 }
 
-void lightSuccessON(){
-  digitalWrite(sendSuccess, HIGH);
-  delay(500);
-  digitalWrite(sendSuccess, LOW);
+void setupLight(){
+  digitalWrite(SETUP_INDICATOR, HIGH);
+  delay(200);
+  digitalWrite(SETUP_INDICATOR, LOW);
+  delay(200);
+  digitalWrite(SETUP_INDICATOR, HIGH);
+  delay(200);
+  digitalWrite(SETUP_INDICATOR, LOW);
 }
 
 void openCurtain(){
